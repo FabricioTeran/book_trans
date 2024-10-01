@@ -64,7 +64,7 @@ fn main() -> anyhow::Result<()> {
     fs::create_dir(&out_dir_path)?;
 
     //Pasar los paths de orig y modif a una funcion que va a llamar al comando dssim
-    let image_difference_paths: Vec<String> = image_difference_dssim(&orig_images, &modif_images, &(out_dir_path.display().to_string()))?;
+    let image_difference_paths: Vec<String> = mask_images(&orig_images, &modif_images, &(out_dir_path.display().to_string()))?;
     println!("{:?}", image_difference_paths);
 
     //Sacar las coordenadas de los rectangulos blancos con opencv
@@ -82,54 +82,35 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn image_difference_dssim(orig_images: &Vec<String>, modif_images: &Vec<String>, out_path: &String) -> anyhow::Result<Vec<String>> {
+fn mask_images(orig_images: &Vec<String>, modif_images: &Vec<String>, out_path: &String) -> anyhow::Result<Vec<String>> {
     //Comparamos el vector con menor longitud para que haya correspondencia 1-1 entre ambas carpetas
     //Si es mayor o igual devolvemos modif porque es menor o igual, si es menor, devolvemos orig porque es menor
     let min_len = match orig_images.len() >= modif_images.len() {
         true => modif_images.len(),
         false => orig_images.len()
     };
-    let mut dssim_out_files: Vec<String> = Vec::new();
+    let mut mask_out_files: Vec<String> = Vec::new();
     //Mejoramos el rendimiento porque hacemos menos llamadas al heap para crecer el tamano del vector
-    dssim_out_files.reserve_exact(min_len);
+    mask_out_files.reserve_exact(min_len);
 
     for i in 0..min_len {
         let out_arg: String = format!("{}/{}.png", out_path, i);
 
         //Dificil problema solucionado: El comando dssim fallaba porque tomaba el -o como otro argumento aparte, entonces al concatenarlo con out_path fallaba
         //En proximas ocasiones probar varias combinaciones, pero cada palabra separada por espacios es considerada como otro parametro
-        /*let out_message: process::Output = Command::new("dssim")
-            .args(["-o", &out_arg, &orig_images[i], &modif_images[i]])
-            .output()?;
-        */
         //Tuvimos que usar el flag -quiet porque las alertas de imagemagick hacian que el programa los tomara como errores
         let out_message: process::Output = Command::new("compare")
-            .args([&modif_images[i], &orig_images[i], "-compose", "src", "-highlight-color", "white", "-lowlight-color", "none", "-quiet", &out_arg])
+            .args([&modif_images[i], &orig_images[i], "-compose", "src", "-highlight-color", "white", "-lowlight-color", "black", "-quiet", &out_arg])
             .output()?;
-
         //Checkear salida y errores de la ejecucion del comando
         //Si no hay salida en el comando, no devuelve nada ni produce error a pesar de usar ?
         io::stdout().write_all(&out_message.stdout)?;
         io::stderr().write_all(&out_message.stderr)?;
 
-        //Eliminar los archivos en diferentes escalas que produce dssim
-        //dssim agrega la string -0, -1, -2, -3, etc al nombre del arhcivo que especifiquemos en -o, asi que solo nos quedamos con los archivos que tengan el -0 y eliminamos el resto
-        //Ya tenemos el nombre de los arhcivos creados recientemente, asi que solo les aumentamos el -1, -2, a su path para eliminarlos, no necesitamos hacer un read_dir
-        //Cada llamada a dssim produce 5 archivos, entonces eliminamos los archivos (-1,-2,-3,-4)
-        //dssim solo produce archivos .png
-        //let delete_file1: String = format!("{}-1.png", &out_arg); fs::remove_file(&delete_file1)?;
-        //let delete_file2: String = format!("{}-2.png", &out_arg); fs::remove_file(&delete_file2)?;
-        //let delete_file3: String = format!("{}-3.png", &out_arg); fs::remove_file(&delete_file3)?;
-        //let delete_file4: String = format!("{}-4.png", &out_arg); fs::remove_file(&delete_file4)?;
-
-        //let keep_file0: String = format!("{}-0.png", &out_arg);
-        dssim_out_files.push(out_arg);
+        mask_out_files.push(out_arg);
     }
 
-    //Ya tenemos los paths de los archivos guardados asi que no tenemos que listarlos de nuevo
-    //Investigar si opencv requiere de archivos abiertos o solo paths
-
-    Ok(dssim_out_files)
+    Ok(mask_out_files)
 }
 
 fn list_files_from_path(path: &Path, ext: &str) -> anyhow::Result<Vec<String>> {
