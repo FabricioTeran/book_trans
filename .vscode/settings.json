@@ -1,0 +1,7 @@
+{
+    "workbench.colorTheme": "Dracula For Rust Theme",
+    "editor.tokenColorCustomizations": {
+        "comments": "",
+        "textMateRules": []
+    }
+}

@@ -1,0 +1,12 @@
+[package]
+name = "book_trans"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.89"
+clap = { version = "4.5.18", features = ["derive"] }
+alphanumeric-sort = "1.5.3"
+random-string = "1.1.0"
