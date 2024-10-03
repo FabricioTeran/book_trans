@@ -64,8 +64,8 @@ fn main() -> anyhow::Result<()> {
     fs::create_dir(&out_dir_path)?;
 
     //Pasar los paths de orig y modif a una funcion que va a llamar al comando dssim
-    let image_difference_paths: Vec<String> = mask_images(&orig_images, &modif_images, &(out_dir_path.display().to_string()))?;
-    println!("{:?}", image_difference_paths);
+    let image_mask_paths: Vec<String> = mask_images(&orig_images, &modif_images, &(out_dir_path.display().to_string()))?;
+    println!("{:?}", image_mask_paths);
 
     //Sacar las coordenadas de los rectangulos blancos con opencv
 
@@ -73,13 +73,20 @@ fn main() -> anyhow::Result<()> {
 
     //Hacer DLA con libreria layout-ort y marcar los bloques de texto con algun distintivo que pueda sobrevivir la traduccion
     //Agregar algun texto al final de cada parrafo para indicar su id (que va a estar asociado con sus coordenadas)
+    //Extraer el texto del archivo producido por layout-ort y colocarlo en un archivo pdf creado y exportarlo
 
-    //Traducir los parrafos exportando todo el texto como un archivo pdf
+    //Esperamos que el usuario traduzca el archivo y luego presione alguna tecla
 
+    //Extraer el texto del pdf traducido y asociar los parrafos a su id para asociarles sus coordenadas
     //Ubicar el texto con sus coordenadas y las imagenes recortadas con sus coordenadas en un archivo pdf
     //Algoritmo para empujar bloques de texto hacia abajo si se superponen
 
     Ok(())
+}
+
+fn rectangle_recognition(image_paths: Vec<String>) {
+    for path in image_paths {
+    }
 }
 
 fn mask_images(orig_images: &Vec<String>, modif_images: &Vec<String>, out_path: &String) -> anyhow::Result<Vec<String>> {
