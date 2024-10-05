@@ -2,6 +2,8 @@ extern crate clap;
 extern crate anyhow;
 extern crate alphanumeric_sort;
 extern crate random_string;
+extern crate imageproc;
+extern crate image;
 
 use std::env;
 
@@ -10,6 +12,8 @@ use std::path::{Path, PathBuf};
 use std::fs::{self, DirEntry};
 use std::process::{self, Command};
 use std::io::{self, Write};
+use image::ImageReader;
+use imageproc::contours::Contour;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -68,6 +72,7 @@ fn main() -> anyhow::Result<()> {
     println!("{:?}", image_mask_paths);
 
     //Sacar las coordenadas de los rectangulos blancos con opencv
+    rectangle_recognition(&image_mask_paths)?;
 
     //Recortar las imagenes originales con las coordenadas obtenidas
 
@@ -84,9 +89,23 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn rectangle_recognition(image_paths: Vec<String>) {
+fn rectangle_recognition(image_paths: &Vec<String>) -> anyhow::Result<()> {
+    /*
     for path in image_paths {
     }
+    */
+
+    let img: image::DynamicImage = ImageReader::open(&image_paths[17])?.decode()?;
+    let gray_img: image::GrayImage = image::GrayImage::from(img);
+    let contours: Vec<Contour<i32>> = imageproc::contours::find_contours(&gray_img);
+    //Filtrar solo los Contour.border_type: outer
+    //Luego extraer el Contour.points y solo preservar sus valores inicial y final
+    //convert 24.png -morphology close disk:8 -type bilevel -define connected-components:exclude-header=true -define connected-components:mean-color=true -define connected-components:area-threshold=100 -define connected-components:verbose=true -connected-components 8 result.png
+    //0x0+0+0 WxH+X1+Y1
+
+    println!("{:?}", contours);
+
+    Ok(())
 }
 
 fn mask_images(orig_images: &Vec<String>, modif_images: &Vec<String>, out_path: &String) -> anyhow::Result<Vec<String>> {
