@@ -2,8 +2,6 @@ extern crate clap;
 extern crate anyhow;
 extern crate alphanumeric_sort;
 extern crate random_string;
-extern crate imageproc;
-extern crate image;
 
 use std::env;
 
@@ -12,8 +10,6 @@ use std::path::{Path, PathBuf};
 use std::fs::{self, DirEntry};
 use std::process::{self, Command};
 use std::io::{self, Write};
-use image::ImageReader;
-use imageproc::contours::Contour;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -72,7 +68,9 @@ fn main() -> anyhow::Result<()> {
     println!("{:?}", image_mask_paths);
 
     //Sacar las coordenadas de los rectangulos blancos con opencv
-    rectangle_recognition(&image_mask_paths)?;
+    //Con el .len de image_mask_paths sabemos cuanto espacio debe ocupar el vector final
+    let page_image_coords: Vec<Vec<Coords>> = rectangle_recognition(&image_mask_paths, image_mask_paths.len())?;
+    println!("{:?}", page_image_coords);
 
     //Recortar las imagenes originales con las coordenadas obtenidas
 
@@ -89,23 +87,56 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn rectangle_recognition(image_paths: &Vec<String>) -> anyhow::Result<()> {
-    /*
+//Crear struct Coords x,y,w,h
+#[derive(Debug)]
+struct Coords {
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32
+}
+//La funcion devuelve Vec<Vec<Coords>> [0][1].x = Pagina 0, img 1, coordenada X
+fn rectangle_recognition(image_paths: &Vec<String>, image_count: usize) -> anyhow::Result<Vec<Vec<Coords>>> {
+    //Reservar espacio con el numero de paginas para mejorar rendimiento
+    let mut result_vec: Vec<Vec<Coords>> = Vec::new();
+    result_vec.reserve_exact(image_count); //Mejora de rendimiento
+    let ignore_file: &str = "null.png";
+
     for path in image_paths {
+        //Ejecutar procesos paralelos para mejorar el rendimiento
+        let out_message: process::Output = Command::new("convert")
+            .args([path, "-morphology", "close", "disk:8", "-type", "bilevel", "-define", "connected-components:exclude-header=true", "-define", "connected-components:mean-color=true", "-define", "connected-components:area-threshold=100", "-define", "connected-components:verbose=true", "-connected-components", "8", ignore_file])
+            .output()?;
+        io::stderr().write_all(&out_message.stderr)?;
+
+        //Filtrar las lineas que acaben en gray(255) porque son las coords de las figuras blancas, gray(0) son figuras de color negro
+        //Luego separar el output por saltos de linea, luego separarlo por espacios
+        //Tomar solo la 2da frase de cada linea
+        let out_str: String = String::from_utf8(out_message.stdout)?;
+        let str_lines: Vec<&str> = out_str.lines()
+            .filter(|&x| x.ends_with("gray(255)"))
+            .collect();
+
+        let mut str_coords: Vec<Coords> = Vec::new(); //vector de struct Coords
+        str_coords.reserve_exact(str_lines.len()); //Mejora de rendimiento
+        for line in str_lines {
+            //0x0+0+0 WxH+X1+Y1
+            let coords: &str = line.split_whitespace().collect::<Vec<&str>>()[1];
+            let individual_coords: Vec<&str> = coords.split(['x', '+']).collect();
+            let into_coords: Coords = Coords{
+                x: individual_coords[2].parse()?,
+                y: individual_coords[3].parse()?,
+                w: individual_coords[0].parse()?,
+                h: individual_coords[1].parse()?
+            };
+
+            str_coords.push(into_coords);
+        }
+
+        result_vec.push(str_coords);
     }
-    */
 
-    let img: image::DynamicImage = ImageReader::open(&image_paths[17])?.decode()?;
-    let gray_img: image::GrayImage = image::GrayImage::from(img);
-    let contours: Vec<Contour<i32>> = imageproc::contours::find_contours(&gray_img);
-    //Filtrar solo los Contour.border_type: outer
-    //Luego extraer el Contour.points y solo preservar sus valores inicial y final
-    //convert 24.png -morphology close disk:8 -type bilevel -define connected-components:exclude-header=true -define connected-components:mean-color=true -define connected-components:area-threshold=100 -define connected-components:verbose=true -connected-components 8 result.png
-    //0x0+0+0 WxH+X1+Y1
-
-    println!("{:?}", contours);
-
-    Ok(())
+    Ok(result_vec)
 }
 
 fn mask_images(orig_images: &Vec<String>, modif_images: &Vec<String>, out_path: &String) -> anyhow::Result<Vec<String>> {
