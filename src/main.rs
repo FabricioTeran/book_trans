@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::fs::{self, DirEntry};
 use std::process::{self, Command};
 use std::io::{self, Write};
+use std::thread;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -69,7 +70,7 @@ fn main() -> anyhow::Result<()> {
 
     //Sacar las coordenadas de los rectangulos blancos con opencv
     //Con el .len de image_mask_paths sabemos cuanto espacio debe ocupar el vector final
-    let page_image_coords: Vec<Vec<Coords>> = rectangle_recognition(&image_mask_paths, image_mask_paths.len())?;
+    let page_image_coords: Vec<Vec<Coords>> = paralel_rectangle_recognition(&image_mask_paths, image_mask_paths.len())?;
     println!("{:?}", page_image_coords);
 
     //Recortar las imagenes originales con las coordenadas obtenidas
@@ -96,47 +97,61 @@ struct Coords {
     h: i32
 }
 //La funcion devuelve Vec<Vec<Coords>> [0][1].x = Pagina 0, img 1, coordenada X
-fn rectangle_recognition(image_paths: &Vec<String>, image_count: usize) -> anyhow::Result<Vec<Vec<Coords>>> {
+fn paralel_rectangle_recognition(image_paths: &Vec<String>, image_count: usize) -> anyhow::Result<Vec<Vec<Coords>>> {
     //Reservar espacio con el numero de paginas para mejorar rendimiento
     let mut result_vec: Vec<Vec<Coords>> = Vec::new();
     result_vec.reserve_exact(image_count); //Mejora de rendimiento
-    let ignore_file: &str = "null.png";
 
+    let mut handle_vec: Vec<thread::JoinHandle<anyhow::Result<Vec<Coords>>>> = Vec::new();
+    handle_vec.reserve_exact(image_count);
     for path in image_paths {
-        //Ejecutar procesos paralelos para mejorar el rendimiento
-        let out_message: process::Output = Command::new("convert")
-            .args([path, "-morphology", "close", "disk:8", "-type", "bilevel", "-define", "connected-components:exclude-header=true", "-define", "connected-components:mean-color=true", "-define", "connected-components:area-threshold=100", "-define", "connected-components:verbose=true", "-connected-components", "8", ignore_file])
-            .output()?;
-        io::stderr().write_all(&out_message.stderr)?;
+        let path_clone = path.clone();
+        handle_vec.push(thread::spawn(move || rectangle_recognition(&path_clone)));
+    }
 
-        //Filtrar las lineas que acaben en gray(255) porque son las coords de las figuras blancas, gray(0) son figuras de color negro
-        //Luego separar el output por saltos de linea, luego separarlo por espacios
-        //Tomar solo la 2da frase de cada linea
-        let out_str: String = String::from_utf8(out_message.stdout)?;
-        let str_lines: Vec<&str> = out_str.lines()
-            .filter(|&x| x.ends_with("gray(255)"))
-            .collect();
-
-        let mut str_coords: Vec<Coords> = Vec::new(); //vector de struct Coords
-        str_coords.reserve_exact(str_lines.len()); //Mejora de rendimiento
-        for line in str_lines {
-            //0x0+0+0 WxH+X1+Y1
-            let coords: &str = line.split_whitespace().collect::<Vec<&str>>()[1];
-            let individual_coords: Vec<&str> = coords.split(['x', '+']).collect();
-            let into_coords: Coords = Coords{
-                x: individual_coords[2].parse()?,
-                y: individual_coords[3].parse()?,
-                w: individual_coords[0].parse()?,
-                h: individual_coords[1].parse()?
-            };
-
-            str_coords.push(into_coords);
-        }
-
-        result_vec.push(str_coords);
+    for handle in handle_vec {
+        //Los metodos .join.unwrap desenvuelven el Result producido por spawn y devuelven el resultado
+        //Luego usamos ? para desnvolver el result de rectangle_recongition
+        let result: Vec<Coords> = handle.join().unwrap()?;
+        result_vec.push(result);
     }
 
     Ok(result_vec)
+}
+fn rectangle_recognition(path: &String) -> anyhow::Result<Vec<Coords>> {
+    let ignore_file: &str = "null.png";
+
+    //Ejecutar procesos paralelos para mejorar el rendimiento
+    let out_message: process::Output = Command::new("convert")
+        .args([path, "-morphology", "close", "disk:8", "-type", "bilevel", "-define", "connected-components:exclude-header=true", "-define", "connected-components:mean-color=true", "-define", "connected-components:area-threshold=100", "-define", "connected-components:verbose=true", "-connected-components", "8", ignore_file])
+        .output()?;
+    io::stderr().write_all(&out_message.stderr)?;
+
+    //Filtrar las lineas que acaben en gray(255) porque son las coords de las figuras blancas, gray(0) son figuras de color negro
+    //Luego separar el output por saltos de linea, luego separarlo por espacios
+    //Tomar solo la 2da frase de cada linea
+    let out_str: String = String::from_utf8(out_message.stdout)?;
+    let str_lines: Vec<&str> = out_str.lines()
+        .filter(|&x| x.ends_with("gray(255)"))
+        .collect();
+
+    let mut str_coords: Vec<Coords> = Vec::new(); //vector de struct Coords
+    str_coords.reserve_exact(str_lines.len()); //Mejora de rendimiento
+    for line in str_lines {
+        //0x0+0+0 WxH+X1+Y1
+        let coords: &str = line.split_whitespace().collect::<Vec<&str>>()[1];
+        let individual_coords: Vec<&str> = coords.split(['x', '+']).collect();
+        let into_coords: Coords = Coords{
+            x: individual_coords[2].parse()?,
+            y: individual_coords[3].parse()?,
+            w: individual_coords[0].parse()?,
+            h: individual_coords[1].parse()?
+        };
+
+        str_coords.push(into_coords);
+    }
+
+    Ok(str_coords)
 }
 
 fn mask_images(orig_images: &Vec<String>, modif_images: &Vec<String>, out_path: &String) -> anyhow::Result<Vec<String>> {
