@@ -2,6 +2,7 @@ extern crate clap;
 extern crate anyhow;
 extern crate alphanumeric_sort;
 extern crate random_string;
+extern crate rayon;
 
 use std::env;
 
@@ -10,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::fs::{self, DirEntry};
 use std::process::{self, Command};
 use std::io::{self, Write};
-use std::thread;
+use rayon::prelude::*;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -70,7 +71,7 @@ fn main() -> anyhow::Result<()> {
 
     //Sacar las coordenadas de los rectangulos blancos con opencv
     //Con el .len de image_mask_paths sabemos cuanto espacio debe ocupar el vector final
-    let page_image_coords: Vec<Vec<Coords>> = paralel_rectangle_recognition(&image_mask_paths, image_mask_paths.len())?;
+    let page_image_coords: Vec<Vec<Coords>> = paralel_rectangle_recognition(&image_mask_paths)?;
     println!("{:?}", page_image_coords);
 
     //Recortar las imagenes originales con las coordenadas obtenidas
@@ -97,26 +98,18 @@ struct Coords {
     h: i32
 }
 //La funcion devuelve Vec<Vec<Coords>> [0][1].x = Pagina 0, img 1, coordenada X
-fn paralel_rectangle_recognition(image_paths: &Vec<String>, image_count: usize) -> anyhow::Result<Vec<Vec<Coords>>> {
-    //Reservar espacio con el numero de paginas para mejorar rendimiento
-    let mut result_vec: Vec<Vec<Coords>> = Vec::new();
-    result_vec.reserve_exact(image_count); //Mejora de rendimiento
+//Hemos bajado de 106s a 70s en 50 archivos
+fn paralel_rectangle_recognition(image_paths: &Vec<String>) -> anyhow::Result<Vec<Vec<Coords>>> {
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(4)
+        .build()?;
+    //pool.install devuelve el ultimo valor de su closure
+    //pool.install solo regresa cuando todos sus threads se han ejecutado
+    let res: Vec<anyhow::Result<Vec<Coords>>> = pool.install(|| image_paths.par_iter().map(|p| rectangle_recognition(p)).collect());
+    let res_check: anyhow::Result<Vec<Vec<Coords>>> = res.into_iter().collect(); //No podemos usar directamente el operador ? porque le tenemos que indicar a .collect como debe transformar el vector, es la implementacion de collect de Result
+    let res_ok: Vec<Vec<Coords>> = res_check?;
 
-    let mut handle_vec: Vec<thread::JoinHandle<anyhow::Result<Vec<Coords>>>> = Vec::new();
-    handle_vec.reserve_exact(image_count);
-    for path in image_paths {
-        let path_clone = path.clone();
-        handle_vec.push(thread::spawn(move || rectangle_recognition(&path_clone)));
-    }
-
-    for handle in handle_vec {
-        //Los metodos .join.unwrap desenvuelven el Result producido por spawn y devuelven el resultado
-        //Luego usamos ? para desnvolver el result de rectangle_recongition
-        let result: Vec<Coords> = handle.join().unwrap()?;
-        result_vec.push(result);
-    }
-
-    Ok(result_vec)
+    Ok(res_ok)
 }
 fn rectangle_recognition(path: &String) -> anyhow::Result<Vec<Coords>> {
     let ignore_file: &str = "null.png";

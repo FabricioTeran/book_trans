@@ -10,3 +10,4 @@ anyhow = "1.0.89"
 clap = { version = "4.5.18", features = ["derive"] }
 alphanumeric-sort = "1.5.3"
 random-string = "1.1.0"
+rayon = "1.10.0"
