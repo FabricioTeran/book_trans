@@ -64,17 +64,22 @@ fn main() -> anyhow::Result<()> {
     out_dir_path.push(&complete_dir_name);
     //Debemos manejar el caso de que la carpeta exista
     fs::create_dir(&out_dir_path)?;
+    let created_outdir_path = out_dir_path.display().to_string();
 
-    //Pasar los paths de orig y modif a una funcion que va a llamar al comando dssim
-    let image_mask_paths: Vec<String> = mask_images(&orig_images, &modif_images, &(out_dir_path.display().to_string()))?;
-    println!("{:?}", image_mask_paths);
+    let mask_dir: String = format!("{}/mask", &created_outdir_path);
+    fs::create_dir(&mask_dir)?;
+    let image_mask_paths: Vec<String> = mask_images(&orig_images, &modif_images, &mask_dir, &args.iext)?;
+    println!("{:?}", &image_mask_paths);
 
-    //Sacar las coordenadas de los rectangulos blancos con opencv
-    //Con el .len de image_mask_paths sabemos cuanto espacio debe ocupar el vector final
-    let page_image_coords: Vec<Vec<Coords>> = paralel_rectangle_recognition(&image_mask_paths)?;
-    println!("{:?}", page_image_coords);
+    //Sacar las coordenadas de los rectangulos blancos con imagemagick
+    let crop_image_coords: Vec<Vec<Coords>> = paralel_rectangle_recognition(&image_mask_paths)?;
+    println!("{:?}", &crop_image_coords);
 
+    let crop_dir: String = format!("{}/crop", &created_outdir_path);
+    fs::create_dir(&crop_dir)?;
     //Recortar las imagenes originales con las coordenadas obtenidas
+    let crop_image_paths: Vec<Vec<String>> = crop_images(&orig_images, &crop_image_coords, &crop_dir, &args.iext)?;
+    println!("{:?}", &crop_image_paths);
 
     //Hacer DLA con libreria layout-ort y marcar los bloques de texto con algun distintivo que pueda sobrevivir la traduccion
     //Agregar algun texto al final de cada parrafo para indicar su id (que va a estar asociado con sus coordenadas)
@@ -105,7 +110,10 @@ fn paralel_rectangle_recognition(image_paths: &Vec<String>) -> anyhow::Result<Ve
         .build()?;
     //pool.install devuelve el ultimo valor de su closure
     //pool.install solo regresa cuando todos sus threads se han ejecutado
-    let res: Vec<anyhow::Result<Vec<Coords>>> = pool.install(|| image_paths.par_iter().map(|p| rectangle_recognition(p)).collect());
+    let res: Vec<anyhow::Result<Vec<Coords>>> = pool.install(|| {
+        image_paths.par_iter().map(|p: &String| rectangle_recognition(p)).collect()
+    });
+    //Si hay un error, todo el vector de Results se convierte en un Result Err
     let res_check: anyhow::Result<Vec<Vec<Coords>>> = res.into_iter().collect(); //No podemos usar directamente el operador ? porque le tenemos que indicar a .collect como debe transformar el vector, es la implementacion de collect de Result
     let res_ok: Vec<Vec<Coords>> = res_check?;
 
@@ -147,7 +155,7 @@ fn rectangle_recognition(path: &String) -> anyhow::Result<Vec<Coords>> {
     Ok(str_coords)
 }
 
-fn mask_images(orig_images: &Vec<String>, modif_images: &Vec<String>, out_path: &String) -> anyhow::Result<Vec<String>> {
+fn mask_images(orig_images: &Vec<String>, modif_images: &Vec<String>, out_path: &String, ext: &String) -> anyhow::Result<Vec<String>> {
     //Comparamos el vector con menor longitud para que haya correspondencia 1-1 entre ambas carpetas
     //Si es mayor o igual devolvemos modif porque es menor o igual, si es menor, devolvemos orig porque es menor
     let min_len = match orig_images.len() >= modif_images.len() {
@@ -159,7 +167,7 @@ fn mask_images(orig_images: &Vec<String>, modif_images: &Vec<String>, out_path: 
     mask_out_files.reserve_exact(min_len);
 
     for i in 0..min_len {
-        let out_arg: String = format!("{}/{}.png", out_path, i);
+        let out_arg: String = format!("{}/{}.{}", out_path, i, ext);
 
         //Dificil problema solucionado: El comando dssim fallaba porque tomaba el -o como otro argumento aparte, entonces al concatenarlo con out_path fallaba
         //En proximas ocasiones probar varias combinaciones, pero cada palabra separada por espacios es considerada como otro parametro
@@ -214,4 +222,29 @@ fn is_file_with_ext(item: &DirEntry, ext: &str) -> bool {
     false
 
     //Con un try-catch podriamos manejar los errores de falta de metadatos y falta de extension sin necesidad de anidar tantos bloques
+}
+
+//convert orig.png -crop 1x1+2+3 result.png
+fn crop_images(orig_images: &Vec<String>, imcoords: &Vec<Vec<Coords>>, out_path: &String, ext: &String) -> anyhow::Result<Vec<Vec<String>>> {
+    let mut result_paths: Vec<Vec<String>> = Vec::new();
+    result_paths.reserve_exact(orig_images.len());
+    
+    for i in 0..orig_images.len() {
+        result_paths.push(Vec::new());
+
+        for j in 0..imcoords[i].len() {
+            let fmt_coords: String = format!("{}x{}+{}+{}", imcoords[i][j].w, imcoords[i][j].h, imcoords[i][j].x, imcoords[i][j].y);
+            let out_file = format!("{}/{}{}{}", out_path, i, j, ext);
+
+            let out_message: process::Output = Command::new("convert")
+                .args([&orig_images[i], "-crop", &fmt_coords, "-quiet", &out_file])
+                .output()?;
+            io::stdout().write_all(&out_message.stdout)?;
+            io::stderr().write_all(&out_message.stderr)?;
+
+            result_paths[i].push(out_file);
+        }
+    }
+
+    Ok(result_paths)
 }
