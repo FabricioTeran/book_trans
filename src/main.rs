@@ -1,9 +1,3 @@
-extern crate clap;
-extern crate anyhow;
-extern crate alphanumeric_sort;
-extern crate random_string;
-extern crate rayon;
-
 use std::env;
 
 use clap::Parser;
@@ -64,7 +58,7 @@ fn main() -> anyhow::Result<()> {
     out_dir_path.push(&complete_dir_name);
     //Debemos manejar el caso de que la carpeta exista
     fs::create_dir(&out_dir_path)?;
-    let created_outdir_path = out_dir_path.display().to_string();
+    let created_outdir_path: String = out_dir_path.display().to_string();
 
     let mask_dir: String = format!("{}/mask", &created_outdir_path);
     fs::create_dir(&mask_dir)?;
@@ -234,7 +228,7 @@ fn crop_images(orig_images: &Vec<String>, imcoords: &Vec<Vec<Coords>>, out_path:
 
         for j in 0..imcoords[i].len() {
             let fmt_coords: String = format!("{}x{}+{}+{}", imcoords[i][j].w, imcoords[i][j].h, imcoords[i][j].x, imcoords[i][j].y);
-            let out_file = format!("{}/{}{}{}", out_path, i, j, ext);
+            let out_file: String = format!("{}/{}{}{}", out_path, i, j, ext);
 
             let out_message: process::Output = Command::new("convert")
                 .args([&orig_images[i], "-crop", &fmt_coords, "-quiet", &out_file])
@@ -248,3 +242,4 @@ fn crop_images(orig_images: &Vec<String>, imcoords: &Vec<Vec<Coords>>, out_path:
 
     Ok(result_paths)
 }
+
