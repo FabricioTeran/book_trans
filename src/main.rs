@@ -10,25 +10,17 @@ use rayon::prelude::*;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Args {
-    ///The path to the folder of the original images. DEFAULT:./orig
-    #[arg(long, default_value = "./orig")]
-    orig: String,
+    ///The path to the original pdf.
+    #[arg(long)]
+    p1: String,
 
-    ///The path to the folder of the modified images. DEFAULT:./modif
-    #[arg(long, default_value = "./modif")]
-    modif: String,
+    //The path to the modified pdf.
+    #[arg(long)]
+    p2: String,
 
-    ///The input language, the language of the source files. DEFAULT:eng
-    #[arg(long, default_value = "eng")]
-    il: String,
-
-    ///The output language, the language of the source files. DEFAULT:esp
-    #[arg(long, default_value = "esp")]
-    ol: String,
-
-    ///The number of generated pdf files. DEFAULT:1
-    #[arg(long, default_value_t = 1)]
-    pdfcount: i32,
+    ///The path to the folder of the translated pdf. DEFAULT:./trans
+    #[arg(long)]
+    trans: String,
 
     ///The path of the output folder, the program creates a folder named booktrans_out in the specified path. DEFAULT:./
     #[arg(long, default_value = "./")]
@@ -43,26 +35,22 @@ fn main() -> anyhow::Result<()> {
     env::set_var("RUST_BACKTRACE", "1");
 
     let args: Args = Args::parse();
-    //Tomar los paths de orig,modif y o
-    let orig_path: &Path = Path::new(&args.orig);
-    let modif_path: &Path = Path::new(&args.modif);
-    let orig_images: Vec<String> = list_files_from_path(orig_path, &args.iext)?;
-    let modif_images: Vec<String> = list_files_from_path(modif_path, &args.iext)?;
 
-    //Crear el directorio a partir de un PathBuf porque a veces el usuario nos puede pasar un path de carpeta que no termina en "/" o el path "./"
-    //Entonces usamos los path estandar porque ellos ya manejan estos casos
-    let mut out_dir_path: PathBuf = PathBuf::from(&args.o);
-    //Generar una cadena random para no sobreescribir los outputs anteriores
-    let rand_str: String = random_string::generate(15, "abcdefghijklmnopqrstuvwxyz1234567890");
-    let complete_dir_name: String = format!("BT_out_{}", &rand_str);
-    out_dir_path.push(&complete_dir_name);
-    //Debemos manejar el caso de que la carpeta exista
-    fs::create_dir(&out_dir_path)?;
-    let created_outdir_path: String = out_dir_path.display().to_string();
+    let created_outdir_path: String = create_outdir(args.o)?;
+
+    //Creamos las carpetas orig y modif
+    let orig_dir: String = format!("{}/orig", &created_outdir_path);
+    fs::create_dir(&orig_dir)?;
+    let modif_dir: String = format!("{}/modif", &created_outdir_path);
+    fs::create_dir(&modif_dir)?;
+
+    //Generar imagenes a partir de los dos pdf
+    let orig_image_paths: Vec<String> = pdf2imgs(&args.p1, &orig_dir, &args.iext)?;
+    let modif_image_paths: Vec<String> = pdf2imgs(&args.p2, &modif_dir, &args.iext)?;
 
     let mask_dir: String = format!("{}/mask", &created_outdir_path);
     fs::create_dir(&mask_dir)?;
-    let image_mask_paths: Vec<String> = mask_images(&orig_images, &modif_images, &mask_dir, &args.iext)?;
+    let image_mask_paths: Vec<String> = mask_images(&orig_image_paths, &modif_image_paths, &mask_dir, &args.iext)?;
     println!("{:?}", &image_mask_paths);
 
     //Sacar las coordenadas de los rectangulos blancos con imagemagick
@@ -72,20 +60,40 @@ fn main() -> anyhow::Result<()> {
     let crop_dir: String = format!("{}/crop", &created_outdir_path);
     fs::create_dir(&crop_dir)?;
     //Recortar las imagenes originales con las coordenadas obtenidas
-    let crop_image_paths: Vec<Vec<String>> = crop_images(&orig_images, &crop_image_coords, &crop_dir, &args.iext)?;
+    let crop_image_paths: Vec<Vec<String>> = crop_images(&orig_image_paths, &crop_image_coords, &crop_dir, &args.iext)?;
     println!("{:?}", &crop_image_paths);
 
-    //Hacer DLA con libreria layout-ort y marcar los bloques de texto con algun distintivo que pueda sobrevivir la traduccion
-    //Agregar algun texto al final de cada parrafo para indicar su id (que va a estar asociado con sus coordenadas)
-    //Extraer el texto del archivo producido por layout-ort y colocarlo en un archivo pdf creado y exportarlo
-
-    //Esperamos que el usuario traduzca el archivo y luego presione alguna tecla
-
-    //Extraer el texto del pdf traducido y asociar los parrafos a su id para asociarles sus coordenadas
-    //Ubicar el texto con sus coordenadas y las imagenes recortadas con sus coordenadas en un archivo pdf
-    //Algoritmo para empujar bloques de texto hacia abajo si se superponen
-
     Ok(())
+}
+
+fn create_outdir(ostring: String) -> anyhow::Result<String> {
+    //Crear el directorio a partir de un PathBuf porque a veces el usuario nos puede pasar un path de carpeta que no termina en "/" o el path "./"
+    //Entonces usamos los path estandar porque ellos ya manejan estos casos
+    let mut out_dir_path: PathBuf = PathBuf::from(&ostring);
+    //Generar una cadena random para no sobreescribir los outputs anteriores
+    let rand_str: String = random_string::generate(15, "abcdefghijklmnopqrstuvwxyz1234567890");
+    let complete_dir_name: String = format!("BT_out_{}", &rand_str);
+    out_dir_path.push(&complete_dir_name);
+    //Debemos manejar el caso de que la carpeta exista
+    fs::create_dir(&out_dir_path)?;
+    
+    Ok(out_dir_path.display().to_string())
+}
+
+//pdftoppm -png -r 200 file.pdf outPath/name
+fn pdf2imgs(pdf_path: &String, out_dir_path: &String, ext: &str) -> anyhow::Result<Vec<String>> {
+    let result_paths: Vec<String>;
+    let out_dir_and_name: String = format!("{}/out", out_dir_path);
+
+    let out_message: process::Output = Command::new("pdftoppm")
+        .args(["-png", "-r", "200", pdf_path, &out_dir_and_name])
+        .output()?;
+    io::stdout().write_all(&out_message.stdout)?;
+    io::stderr().write_all(&out_message.stderr)?;
+
+    result_paths = list_files_from_path(out_dir_path, ext)?;
+
+    Ok(result_paths)
 }
 
 //Crear struct Coords x,y,w,h
@@ -180,7 +188,8 @@ fn mask_images(orig_images: &Vec<String>, modif_images: &Vec<String>, out_path: 
     Ok(mask_out_files)
 }
 
-fn list_files_from_path(path: &Path, ext: &str) -> anyhow::Result<Vec<String>> {
+//El parametro ext no debe tener el punto, por ej: "png", "pdf"
+fn list_files_from_path(path: &String, ext: &str) -> anyhow::Result<Vec<String>> {
     let items: fs::ReadDir = fs::read_dir(path)?;
     let mut str_path_items: Vec<String> = Vec::new();
 
