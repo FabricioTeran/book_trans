@@ -6,4 +6,8 @@ Antes de usar el programa debemos tener instalado image-magick, Version: ImageMa
 
 ref: https://stackoverflow.com/questions/49639342/how-can-i-downgrade-or-install-an-older-version-of-a-tool-i-installed-with-carg
 
-- Las imagenes deben tener el mismo perfil de color, el mismo formato de archivo y la misma configuracion de compresion
+- Debo tener instalado pdftoppm 22.02.0
+- img2pdf 0.4.2
+
+Lo compilo abriendo una terminal en la carpeta donde esta el Cargo.toml y ejecuto:
+- "cargo run -- --p1 ./path/orig.pdf --p2 ./path/modif.pdf --tr ./path/trans.pdf"

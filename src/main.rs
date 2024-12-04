@@ -20,7 +20,7 @@ struct Args {
 
     ///The path to the folder of the translated pdf. DEFAULT:./trans
     #[arg(long)]
-    trans: String,
+    tr: String,
 
     ///The path of the output folder, the program creates a folder named booktrans_out in the specified path. DEFAULT:./
     #[arg(long, default_value = "./")]
@@ -62,6 +62,16 @@ fn main() -> anyhow::Result<()> {
     //Recortar las imagenes originales con las coordenadas obtenidas
     let crop_image_paths: Vec<Vec<String>> = crop_images(&orig_image_paths, &crop_image_coords, &crop_dir, &args.iext)?;
     println!("{:?}", &crop_image_paths);
+
+    let trans_dir: String = format!("{}/trans", &created_outdir_path);
+    fs::create_dir(&trans_dir)?;
+    let trans_image_paths: Vec<String> = pdf2imgs(&args.tr, &trans_dir, &args.iext)?;
+    //Pegamos las imagenes recortadas sobre las imagenes traducidas
+    let last_image_paths: Vec<String> = paste_crop_images(&trans_image_paths, &crop_image_paths, &crop_image_coords)?;
+
+    //Juntar todas las imagenes en un solo pdf
+    //De momento lo hago manual porque no puede leer rutas relativas creo (al hacerlo manual si lee rutas relativas)
+    //imgs2pdf(&trans_dir, &created_outdir_path)?;
 
     Ok(())
 }
@@ -126,7 +136,7 @@ fn rectangle_recognition(path: &String) -> anyhow::Result<Vec<Coords>> {
 
     //Ejecutar procesos paralelos para mejorar el rendimiento
     let out_message: process::Output = Command::new("convert")
-        .args([path, "-morphology", "close", "disk:8", "-type", "bilevel", "-define", "connected-components:exclude-header=true", "-define", "connected-components:mean-color=true", "-define", "connected-components:area-threshold=100", "-define", "connected-components:verbose=true", "-connected-components", "8", ignore_file])
+        .args([path, "-define", "connected-components:exclude-header=true", "-define", "connected-components:area-threshold=100", "-define", "connected-components:verbose=true", "-connected-components", "4", ignore_file])
         .output()?;
     io::stderr().write_all(&out_message.stderr)?;
 
@@ -237,7 +247,7 @@ fn crop_images(orig_images: &Vec<String>, imcoords: &Vec<Vec<Coords>>, out_path:
 
         for j in 0..imcoords[i].len() {
             let fmt_coords: String = format!("{}x{}+{}+{}", imcoords[i][j].w, imcoords[i][j].h, imcoords[i][j].x, imcoords[i][j].y);
-            let out_file: String = format!("{}/{}{}{}", out_path, i, j, ext);
+            let out_file: String = format!("{}/{}_{}.{}", out_path, i, j, ext);
 
             let out_message: process::Output = Command::new("convert")
                 .args([&orig_images[i], "-crop", &fmt_coords, "-quiet", &out_file])
@@ -252,3 +262,45 @@ fn crop_images(orig_images: &Vec<String>, imcoords: &Vec<Vec<Coords>>, out_path:
     Ok(result_paths)
 }
 
+//composite -geometry +X+Y front.png back.png out.png
+fn paste_crop_images(trans_images: &Vec<String>, crop_images: &Vec<Vec<String>>, crop_coords: &Vec<Vec<Coords>>) -> anyhow::Result<Vec<String>> {
+    let mut result_paths: Vec<String> = Vec::new();
+    result_paths.reserve_exact(trans_images.len());
+    
+    for i in 0..trans_images.len() {
+        //Si la pagina no tiene crops, no entra a este bucle porque se forma el rango 0..0
+        for j in 0..crop_images[i].len() {
+            //Recalculamos porque google trans cambia el tamano de las imagenes, les aumenta 300px X y 350px Y
+            let recalc_x: i32 = crop_coords[i][j].x - 150;
+            let recalc_y: i32 = crop_coords[i][j].y - 175;
+            let coords: String = format!("+{}+{}", recalc_x, recalc_y);
+
+            //Aqui tanto la back image como el resultado es el mismo path para sobreescribirlo en cada iteracion del 2do loop
+            let out_message: process::Output = Command::new("composite")
+                .args(["-geometry", &coords, &crop_images[i][j], &trans_images[i], &trans_images[i]])
+                .output()?;
+            io::stdout().write_all(&out_message.stdout)?;
+            io::stderr().write_all(&out_message.stderr)?;
+        }
+
+        //Esta afuera del 2do bucle porque si no agregariamos 2 o mas veces el mismo path (ya que agregamos varias imagenes a cada imagen)
+        result_paths.push(trans_images[i].clone());
+    }
+
+    Ok(result_paths)
+}
+
+//img2pdf path/*.png -o out.pdf
+//Confiamos en el orden de las imagenes porque terminan en -001, -002, entonces un ordenamiento alfanumerico sirve
+fn imgs2pdf(img_dir: &String, out_dir: &String) -> anyhow::Result<()> {
+    let all_png: String = format!("{}/*.png", img_dir);
+    let out_file: String = format!("{}/out.pdf", out_dir);
+
+    let out_message: process::Output = Command::new("img2pdf")
+        .args([&all_png, "-o", &out_file])
+        .output()?;
+    io::stdout().write_all(&out_message.stdout)?;
+    io::stderr().write_all(&out_message.stderr)?;
+
+    Ok(())
+}
