@@ -12,15 +12,15 @@ use book_trans::pdfutil;
 struct Args {
     ///The path to the original pdf.
     #[arg(long)]
-    p1: String,
+    orig: String,
 
     //The path to the modified pdf.
     #[arg(long)]
-    p2: String,
+    modif: String,
 
     ///The path to the folder of the translated pdf. DEFAULT:./trans
     #[arg(long)]
-    tr: String,
+    trans: String,
 
     ///The path of the output folder, the program creates a folder named booktrans_out in the specified path. DEFAULT:./
     #[arg(long, default_value = "./")]
@@ -45,29 +45,34 @@ fn main() -> anyhow::Result<()> {
     fs::create_dir(&modif_dir)?;
 
     //Generar imagenes a partir de los dos pdf
-    let orig_image_paths: Vec<String> = pdfutil::pdf2imgs(&args.p1, &orig_dir, &args.iext)?;
-    let modif_image_paths: Vec<String> = pdfutil::pdf2imgs(&args.p2, &modif_dir, &args.iext)?;
+    let res1: Vec<String> = pdfutil::pdf2imgs(&args.orig, &orig_dir, &args.iext)?;
+    let orig_image_paths_slice: &[String] = res1.as_slice();
+    let res2: Vec<String> = pdfutil::pdf2imgs(&args.modif, &modif_dir, &args.iext)?;
+    let modif_image_paths_slice: &[String] = res2.as_slice();
 
     let mask_dir: String = format!("{}/mask", &created_outdir_path);
     fs::create_dir(&mask_dir)?;
-    let image_mask_paths: Vec<String> = imagick::mask_images(&orig_image_paths, &modif_image_paths, &mask_dir, &args.iext)?;
-    println!("{:?}", &image_mask_paths);
+    let res3: Vec<String> = imagick::mask_images(orig_image_paths_slice, modif_image_paths_slice, &mask_dir, &args.iext)?;
+    let image_mask_paths_slice: &[String] = res3.as_slice();
+    println!("{:?}", image_mask_paths_slice);
 
     //Sacar las coordenadas de los rectangulos blancos con imagemagick
-    let crop_image_coords: Vec<Vec<imagick::Coords>> = imagick::paralel_rectangle_recognition(&image_mask_paths)?;
+    let crop_image_coords: Vec<Vec<imagick::Coords>> = imagick::paralel_rectangle_recognition(image_mask_paths_slice)?;
     println!("{:?}", &crop_image_coords);
 
     let crop_dir: String = format!("{}/crop", &created_outdir_path);
     fs::create_dir(&crop_dir)?;
     //Recortar las imagenes originales con las coordenadas obtenidas
-    let crop_image_paths: Vec<Vec<String>> = imagick::crop_images(&orig_image_paths, &crop_image_coords, &crop_dir, &args.iext)?;
+    let crop_image_paths: Vec<Vec<String>> = imagick::crop_images(orig_image_paths_slice, &crop_image_coords, &crop_dir, &args.iext)?;
     println!("{:?}", &crop_image_paths);
 
     let trans_dir: String = format!("{}/trans", &created_outdir_path);
     fs::create_dir(&trans_dir)?;
-    let trans_image_paths: Vec<String> = pdfutil::pdf2imgs(&args.tr, &trans_dir, &args.iext)?;
+    let res4: Vec<String> = pdfutil::pdf2imgs(&args.trans, &trans_dir, &args.iext)?;
+    let trans_image_paths_slice: &[String] = res4.as_slice();
     //Pegamos las imagenes recortadas sobre las imagenes traducidas
-    let last_image_paths: Vec<String> = imagick::paste_crop_images(&trans_image_paths, &crop_image_paths, &crop_image_coords)?;
+    let res5: Vec<String> = imagick::paste_crop_images(trans_image_paths_slice, &crop_image_paths, &crop_image_coords)?;
+    let last_image_paths_slice: &[String] = res5.as_slice();
 
     //Juntar todas las imagenes en un solo pdf
     //De momento lo hago manual porque no puede leer rutas relativas creo (al hacerlo manual si lee rutas relativas)

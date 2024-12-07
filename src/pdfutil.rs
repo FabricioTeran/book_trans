@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use crate::fileutil;
 
 //pdftoppm -png -r 200 file.pdf outPath/name
-pub fn pdf2imgs(pdf_path: &String, out_dir_path: &String, ext: &str) -> anyhow::Result<Vec<String>> {
+pub fn pdf2imgs(pdf_path: &str, out_dir_path: &str, ext: &str) -> anyhow::Result<Vec<String>> {
     let result_paths: Vec<String>;
     let out_dir_and_name: String = format!("{}/out", out_dir_path);
 
@@ -20,7 +20,7 @@ pub fn pdf2imgs(pdf_path: &String, out_dir_path: &String, ext: &str) -> anyhow::
 
 //img2pdf path/*.png -o out.pdf
 //Confiamos en el orden de las imagenes porque terminan en -001, -002, entonces un ordenamiento alfanumerico sirve
-pub fn imgs2pdf(img_dir: &String, out_dir: &String) -> anyhow::Result<()> {
+pub fn imgs2pdf(img_dir: &str, out_dir: &str) -> anyhow::Result<()> {
     let all_png: String = format!("{}/*.png", img_dir);
     let out_file: String = format!("{}/out.pdf", out_dir);
 

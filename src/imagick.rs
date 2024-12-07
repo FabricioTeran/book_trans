@@ -12,7 +12,7 @@ pub struct Coords {
 }
 //La funcion devuelve Vec<Vec<Coords>> [0][1].x = Pagina 0, img 1, coordenada X
 //Hemos bajado de 106s a 70s en 50 archivos
-pub fn paralel_rectangle_recognition(image_paths: &Vec<String>) -> anyhow::Result<Vec<Vec<Coords>>> {
+pub fn paralel_rectangle_recognition(image_paths: &[String]) -> anyhow::Result<Vec<Vec<Coords>>> {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(4)
         .build()?;
@@ -27,7 +27,7 @@ pub fn paralel_rectangle_recognition(image_paths: &Vec<String>) -> anyhow::Resul
 
     Ok(res_ok)
 }
-pub fn rectangle_recognition(path: &String) -> anyhow::Result<Vec<Coords>> {
+pub fn rectangle_recognition(path: &str) -> anyhow::Result<Vec<Coords>> {
     let ignore_file: &str = "null.png";
 
     //Ejecutar procesos paralelos para mejorar el rendimiento
@@ -63,7 +63,7 @@ pub fn rectangle_recognition(path: &String) -> anyhow::Result<Vec<Coords>> {
     Ok(str_coords)
 }
 
-pub fn mask_images(orig_images: &Vec<String>, modif_images: &Vec<String>, out_path: &String, ext: &String) -> anyhow::Result<Vec<String>> {
+pub fn mask_images(orig_images: &[String], modif_images: &[String], out_path: &str, ext: &str) -> anyhow::Result<Vec<String>> {
     //Comparamos el vector con menor longitud para que haya correspondencia 1-1 entre ambas carpetas
     //Si es mayor o igual devolvemos modif porque es menor o igual, si es menor, devolvemos orig porque es menor
     let min_len = match orig_images.len() >= modif_images.len() {
@@ -95,7 +95,7 @@ pub fn mask_images(orig_images: &Vec<String>, modif_images: &Vec<String>, out_pa
 }
 
 //convert orig.png -crop 1x1+2+3 result.png
-pub fn crop_images(orig_images: &Vec<String>, imcoords: &Vec<Vec<Coords>>, out_path: &String, ext: &String) -> anyhow::Result<Vec<Vec<String>>> {
+pub fn crop_images(orig_images: &[String], imcoords: &Vec<Vec<Coords>>, out_path: &str, ext: &str) -> anyhow::Result<Vec<Vec<String>>> {
     let mut result_paths: Vec<Vec<String>> = Vec::new();
     result_paths.reserve_exact(orig_images.len());
     
@@ -120,7 +120,7 @@ pub fn crop_images(orig_images: &Vec<String>, imcoords: &Vec<Vec<Coords>>, out_p
 }
 
 //composite -geometry +X+Y front.png back.png out.png
-pub fn paste_crop_images(trans_images: &Vec<String>, crop_images: &Vec<Vec<String>>, crop_coords: &Vec<Vec<Coords>>) -> anyhow::Result<Vec<String>> {
+pub fn paste_crop_images(trans_images: &[String], crop_images: &Vec<Vec<String>>, crop_coords: &Vec<Vec<Coords>>) -> anyhow::Result<Vec<String>> {
     let mut result_paths: Vec<String> = Vec::new();
     result_paths.reserve_exact(trans_images.len());
     
@@ -146,3 +146,8 @@ pub fn paste_crop_images(trans_images: &Vec<String>, crop_images: &Vec<Vec<Strin
 
     Ok(result_paths)
 }
+
+//Crear un supercomando que haga todo en vez de crear archivos
+//Dirigir cada mascara al reconocimiento de rectangulos sin guardar las mascaras
+//Luego cropear las imagenes con las coords obtenidas y dirigir estos cortes a las imagenes traducidas
+//No puedo conectar a menos que halle la forma de cortar el output de convert para pipearlo al siguiente comando

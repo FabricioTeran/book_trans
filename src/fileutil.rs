@@ -1,7 +1,7 @@
 use std::fs::{self, DirEntry};
 
 //El parametro ext no debe tener el punto, por ej: "png", "pdf"
-pub fn list_files_from_path(path: &String, ext: &str) -> anyhow::Result<Vec<String>> {
+pub fn list_files_from_path(path: &str, ext: &str) -> anyhow::Result<Vec<String>> {
     let items: fs::ReadDir = fs::read_dir(path)?;
     let mut str_path_items: Vec<String> = Vec::new();
 
@@ -13,7 +13,6 @@ pub fn list_files_from_path(path: &String, ext: &str) -> anyhow::Result<Vec<Stri
             }
         }
     }
-
     //Ordenamos los archivos por orden alfanumerico
     //str_path_items.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
     //La anterior instruccion no funciona con paths de archivos, por eso utilice el crate alphanumeric_sort
