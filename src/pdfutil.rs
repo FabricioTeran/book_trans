@@ -9,7 +9,7 @@ pub fn pdf2imgs(pdf_path: &str, out_dir_path: &str, ext: &str) -> anyhow::Result
     let out_name: String = format!("{}/%03d.png", out_dir_path);
 
     let out_message: process::Output = Command::new("gs")
-        .args(["-sDEVICE=png256", "-o", &out_name, "-r200x200", pdf_path])
+        .args(["-sDEVICE=png256", "-o", &out_name, "-r300x300", "-q", pdf_path])
         .output()?;
     io::stdout().write_all(&out_message.stdout)?;
     io::stderr().write_all(&out_message.stderr)?;

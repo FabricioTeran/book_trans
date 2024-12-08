@@ -1,4 +1,3 @@
-use rayon::prelude::*;
 use std::process::{self, Command};
 use std::io::{self, Write};
 
@@ -15,17 +14,23 @@ pub fn mask_and_recognize(orig_images: &[String], modif_images: &[String]) -> an
     final_vec.reserve_exact(min_len);
 
     for i in 0..min_len {
-        let out_message: process::Output = Command::new("compare")
-            .args([&modif_images[i], &orig_images[i], "-compose", "src", "-highlight-color", "white", "-lowlight-color", "black", "-quiet", "miff:-", "|", "convert", "-", "-define", "connected-components:exclude-header=true", "-define", "connected-components:area-threshold=100", "-define", "connected-components:verbose=true", "-connected-components", "4", ignore_file])
+        let mask_args: String = format!("compare {} {} -compose src -highlight-color white -lowlight-color black -quiet miff:-", modif_images[i], orig_images[i]);
+        let recognize_args: String = format!("convert - -define connected-components:exclude-header=true -define connected-components:area-threshold=100 -define connected-components:verbose=true -connected-components 4 {}", ignore_file);
+        let complete_args: String = format!("{} | {}", mask_args, recognize_args);
+
+        let out_message: process::Output = Command::new("bash")
+            .args(["-c", &complete_args])
             .output()?;
+        io::stdout().write_all(&out_message.stdout)?;
         io::stderr().write_all(&out_message.stderr)?;
 
         //Filtrar las lineas que acaben en gray(255) porque son las coords de las figuras blancas, gray(0) son figuras de color negro
         //Luego separar el output por saltos de linea, luego separarlo por espacios
         //Tomar solo la 2da frase de cada linea
+        //Ahora como transimitimos el formato miff, cambiamos la conicidencia a srgba(255,255,255,1)
         let out_str: String = String::from_utf8(out_message.stdout)?;
         let str_lines: Vec<&str> = out_str.lines()
-            .filter(|&x| x.ends_with("gray(255)"))
+            .filter(|&x| x.ends_with("srgba(255,255,255,1)"))
             .collect();
 
         let mut str_coords: Vec<Coords> = Vec::new(); //vector de struct Coords
@@ -66,9 +71,13 @@ pub fn crop_and_paste(orig_images: &[String], trans_images: &[String], imcoords:
         for j in 0..imcoords[i].len() {
             let fmt_coords: String = format!("{}x{}+{}+{}", imcoords[i][j].w, imcoords[i][j].h, imcoords[i][j].x, imcoords[i][j].y);
             let xy_coords: String = format!("+{}+{}", imcoords[i][j].x, imcoords[i][j].y);
+            
+            let crop_args: String = format!("convert {} -crop {} -quiet miff:-", orig_images[i], fmt_coords);
+            let paste_args: String = format!("composite -geometry {} - {} {}", xy_coords, trans_images[i], trans_images[i]);
+            let complete_args: String = format!("{} | {}", crop_args, paste_args);
 
-            let out_message: process::Output = Command::new("convert")
-                .args([&orig_images[i], "-crop", &fmt_coords, "-quiet", "miff:-", "|", "composite", "-geometry", &xy_coords, "-", &trans_images[i], &trans_images[i]])
+            let out_message: process::Output = Command::new("bash")
+                .args(["-c", &complete_args])
                 .output()?;
             io::stdout().write_all(&out_message.stdout)?;
             io::stderr().write_all(&out_message.stderr)?;
