@@ -2,13 +2,14 @@ use std::process::{self, Command};
 use std::io::{self, Write};
 use crate::fileutil;
 
-//pdftoppm -png -r 200 file.pdf outPath/name
+//gs -sDEVICE=png256 -o bar_%03d.png -r200x200 input.pdf
+//Solo convierte a png por el momento
 pub fn pdf2imgs(pdf_path: &str, out_dir_path: &str, ext: &str) -> anyhow::Result<Vec<String>> {
     let result_paths: Vec<String>;
-    let out_dir_and_name: String = format!("{}/out", out_dir_path);
+    let out_name: String = format!("{}/%03d.png", out_dir_path);
 
-    let out_message: process::Output = Command::new("pdftoppm")
-        .args(["-png", "-r", "200", pdf_path, &out_dir_and_name])
+    let out_message: process::Output = Command::new("gs")
+        .args(["-sDEVICE=png256", "-o", &out_name, "-r200x200", pdf_path])
         .output()?;
     io::stdout().write_all(&out_message.stdout)?;
     io::stderr().write_all(&out_message.stderr)?;
