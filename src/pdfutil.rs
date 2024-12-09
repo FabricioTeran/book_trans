@@ -21,12 +21,21 @@ pub fn pdf2imgs(pdf_path: &str, out_dir_path: &str, ext: &str) -> anyhow::Result
 
 //pdftk *.pdf cat output result.pdf
 //El ordenamiento de las carpetas es aleatorio, asi que depende del comando pdftk tomar los archivos en orden
-pub fn merge_pdf(pdf_images_dir: &str, out_dir: &str) -> anyhow::Result<String> {
-    let all_pdf: String = format!("{}/*.pdf", pdf_images_dir);
+pub fn merge_pdf(pdf_images: &Vec<String>, out_dir: &str) -> anyhow::Result<String> {
     let out_file: String = format!("{}/merged.pdf", out_dir);
 
+    //Aqui convertimos el &Vec<String> a Vec<&String> para pasarle a Command::new
+    let mut swap_vec: Vec<&str> = Vec::new();
+    swap_vec.reserve_exact(pdf_images.len());
+    for img in pdf_images {
+        swap_vec.push(img);
+    }
+    //Usamos vector para el resto de argumentos porque no podemos concatenar tipos diferentes
+    let args: Vec<&str> = vec!["cat", "output", &out_file];
+
+    //Concatenamos los dos vectores de argumentos en un intento de emular la spread syntax
     let out_message: process::Output = Command::new("pdftk")
-        .args([&all_pdf, "cat", "output", &out_file])
+        .args([&swap_vec[..], &args[..]].concat()) 
         .output()?;
     io::stdout().write_all(&out_message.stdout)?;
     io::stderr().write_all(&out_message.stderr)?;

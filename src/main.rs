@@ -56,7 +56,7 @@ fn main() -> anyhow::Result<()> {
     let pdf_img_paths: Vec<String> = imagick::mask_and_alpha(orig_image_paths_slice, modif_image_paths_slice, &pdf_dir)?;
     println!("{:?}", &pdf_img_paths);
 
-    let merged_pdf: String = pdfutil::merge_pdf(&pdf_dir, &pdf_dir)?;
+    let merged_pdf: String = pdfutil::merge_pdf(&pdf_img_paths, &pdf_dir)?;
     pdfutil::overlay_pdf(&args.trans, &merged_pdf, &created_outdir_path)?;
 
     Ok(())
