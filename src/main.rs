@@ -43,22 +43,21 @@ fn main() -> anyhow::Result<()> {
     fs::create_dir(&orig_dir)?;
     let modif_dir: String = format!("{}/modif", &created_outdir_path);
     fs::create_dir(&modif_dir)?;
-    let trans_dir: String = format!("{}/trans", &created_outdir_path);
-    fs::create_dir(&trans_dir)?;
+    let pdf_dir: String = format!("{}/pdf", &created_outdir_path);
+    fs::create_dir(&pdf_dir)?;
 
     //Generar imagenes a partir de los dos pdf
     let res1: Vec<String> = pdfutil::pdf2imgs(&args.orig, &orig_dir, &args.iext)?;
     let orig_image_paths_slice: &[String] = res1.as_slice();
     let res2: Vec<String> = pdfutil::pdf2imgs(&args.modif, &modif_dir, &args.iext)?;
     let modif_image_paths_slice: &[String] = res2.as_slice();
-    let res4: Vec<String> = pdfutil::pdf2imgs(&args.trans, &trans_dir, &args.iext)?;
-    let trans_image_paths_slice: &[String] = res4.as_slice();
 
     //Sacar las coordenadas de los rectangulos blancos con imagemagick
-    let crop_image_coords: Vec<Vec<imagick::Coords>> = imagick::mask_and_recognize(orig_image_paths_slice, modif_image_paths_slice)?;
-    println!("{:?}", &crop_image_coords);
+    let pdf_img_paths: Vec<String> = imagick::mask_and_alpha(orig_image_paths_slice, modif_image_paths_slice, &pdf_dir)?;
+    println!("{:?}", &pdf_img_paths);
 
-    imagick::crop_and_paste(orig_image_paths_slice, trans_image_paths_slice, &crop_image_coords)?;
+    let merged_pdf: String = pdfutil::merge_pdf(&pdf_dir, &pdf_dir)?;
+    pdfutil::overlay_pdf(&args.trans, &merged_pdf, &created_outdir_path)?;
 
     Ok(())
 }
