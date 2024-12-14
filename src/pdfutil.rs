@@ -11,7 +11,7 @@ pub fn pdf2imgs(pdf_path: &str, out_dir_path: &str, ext: &str) -> anyhow::Result
 
     //Lo tenemos que dejar -sDEVICE=png16m porque con png256 la diferencia de iagenes causa problemas
     let out_message: process::Output = Command::new("gs")
-        .args(["-sDEVICE=png16m", "-o", &out_name, "-r600", "-dDownScaleFactor=3", "-q", pdf_path])
+        .args(["-sDEVICE=png16m", "-o", &out_name, "-r600", "-dDownScaleFactor=3", "-dUseCropBox", "-q", pdf_path])
         .output()?;
     io::stdout().write_all(&out_message.stdout)?;
     io::stderr().write_all(&out_message.stderr)?;
