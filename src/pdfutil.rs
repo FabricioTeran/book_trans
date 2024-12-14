@@ -4,12 +4,14 @@ use crate::fileutil;
 
 //gs -sDEVICE=png256 -o bar_%03d.png -r200x200 input.pdf
 //Solo convierte a png por el momento
+//Averiguar otro comando que saque mejores imagenes, este saca a muy baja resolucion
 pub fn pdf2imgs(pdf_path: &str, out_dir_path: &str, ext: &str) -> anyhow::Result<Vec<String>> {
     let result_paths: Vec<String>;
     let out_name: String = format!("{}/%03d.png", out_dir_path);
 
+    //Lo tenemos que dejar -sDEVICE=png16m porque con png256 la diferencia de iagenes causa problemas
     let out_message: process::Output = Command::new("gs")
-        .args(["-sDEVICE=png16m", "-o", &out_name, "-r150", "-q", pdf_path])
+        .args(["-sDEVICE=png16m", "-o", &out_name, "-r600", "-dDownScaleFactor=3", "-q", pdf_path])
         .output()?;
     io::stdout().write_all(&out_message.stdout)?;
     io::stderr().write_all(&out_message.stderr)?;
