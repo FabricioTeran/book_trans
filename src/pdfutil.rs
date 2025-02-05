@@ -2,10 +2,16 @@ use std::process::{self, Command};
 use std::io::{self, Write};
 use crate::fileutil;
 
-//gs -sDEVICE=png256 -o bar_%03d.png -r200x200 input.pdf
-//Solo convierte a png por el momento
-//Averiguar otro comando que saque mejores imagenes, este saca a muy baja resolucion
-pub fn pdf2imgs(pdf_path: &str, out_dir_path: &str, ext: &str) -> anyhow::Result<Vec<String>> {
+/*Converts PDFs to a collection of images with the command: gs -sDEVICE=png256 -o bar_%03d.png -r200x200 input.pdf
+Parameters:
+- pdf_path: &str = The path to the PDF.
+- out_dir_path: &str = The path to the output dir.
+- ext: &str = The extension of the created images, only .png supported for now.
+All paths should be Unix valid.
+Return:
+- Result<Vec<String>> = The Result containing a vector of strings of all the paths of the extracted images.
+*/
+pub fn pdf2imgs(pdf_path: &str, out_dir_path: &str, ext: &str) -> anyhow::Result<Vec<String>> { //Solo convierte a png por el momento
     let result_paths: Vec<String>;
     let out_name: String = format!("{}/%03d.png", out_dir_path);
 
@@ -21,9 +27,15 @@ pub fn pdf2imgs(pdf_path: &str, out_dir_path: &str, ext: &str) -> anyhow::Result
     Ok(result_paths)
 }
 
-//pdftk *.pdf cat output result.pdf
-//El ordenamiento de las carpetas es aleatorio, asi que depende del comando pdftk tomar los archivos en orden
-pub fn merge_pdf(pdf_images: &Vec<String>, out_dir: &str) -> anyhow::Result<String> {
+/*Merges PDFs with the command: pdftk *.pdf cat output result.pdf
+Parameters:
+- pdf_images: &Vec<String> = The list (as reference) of the paths of all PDFs to be merged.
+- out_dir: &str = The path of the output dir to be passed to the command.
+All paths should be Unix valid.
+Return:
+- Result<String> = The Result containing the path of the final PDF produced by the command.
+*/
+pub fn merge_pdf(pdf_images: &Vec<String>, out_dir: &str) -> anyhow::Result<String> { //El ordenamiento de las carpetas es aleatorio, asi que depende del comando pdftk tomar los archivos en orden
     let out_file: String = format!("{}/merged.pdf", out_dir);
 
     //Aqui convertimos el &Vec<String> a Vec<&String> para pasarle a Command::new
@@ -45,7 +57,15 @@ pub fn merge_pdf(pdf_images: &Vec<String>, out_dir: &str) -> anyhow::Result<Stri
     Ok(out_file)
 }
 
-//qpdf Evading_EDR.pdf --overlay result.pdf -- stamped.pdf
+/*Overlays a PDF with transparent background on top of another PDF with the command: qpdf original.pdf --overlay result.pdf -- stamped.pdf
+Parameters:
+- bottom_pdf_path: &str = The path to the bottom PDF.
+- top_pdf_path: &str = The path to the top PDF, it should have transparent background.
+- out_dir: &str = The path to the output dir.
+All paths should be Unix valid.
+Return:
+- Result<()> = If no errors, the result is an empty tuple.
+*/
 pub fn overlay_pdf(bottom_pdf_path: &str, top_pdf_path: &str, out_dir: &str) -> anyhow::Result<()> {
     let out_file: String = format!("{}/result.pdf", out_dir);
 

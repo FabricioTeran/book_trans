@@ -1,7 +1,15 @@
 use std::process::{self, Command};
 use std::io::{self, Write};
 
-//Resolver: no funcionan los pipes
+/*Creates PDFs containing the difference between the input images, the result PDFs have transparent background.
+Parameters:
+- orig_images: &[String] = A slice containing the converted images from the original PDF.
+- modif_images: &[String] = A slice containing the converted images from the modified PDF.
+- out_dir: &str = The path to the output dir.
+All paths should be Unix valid.
+Return:
+- Result<Vec<String>> = The Result containing a vector of strings of the paths of the resulting PDFs.
+*/
 pub fn mask_and_alpha(orig_images: &[String], modif_images: &[String], out_dir: &str) -> anyhow::Result<Vec<String>> {
     //Comparamos el vector con menor longitud para que haya correspondencia 1-1 entre ambas carpetas
     //Si es mayor o igual devolvemos modif porque es menor o igual, si es menor, devolvemos orig porque es menor

@@ -31,6 +31,10 @@ struct Args {
     iext: String,
 }
 
+/* The main function
+Parameters:
+Return:
+*/
 fn main() -> anyhow::Result<()> {
     env::set_var("RUST_BACKTRACE", "1");
 
@@ -62,6 +66,12 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/* Creates a directory from a String, it's not validated.
+Parameters:
+- ostring: String = The String representing the path of the directory that will be created, it should be unix valid path.
+Return:
+- Result<String> = A result containing a string of the path of the created directory.
+*/
 fn create_outdir(ostring: String) -> anyhow::Result<String> {
     //Crear el directorio a partir de un PathBuf porque a veces el usuario nos puede pasar un path de carpeta que no termina en "/" o el path "./"
     //Entonces usamos los path estandar porque ellos ya manejan estos casos
