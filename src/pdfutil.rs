@@ -15,7 +15,7 @@ pub fn pdf2imgs(pdf_path: &str, out_dir_path: &str, ext: &str) -> anyhow::Result
     let result_paths: Vec<String>;
     let out_name: String = format!("{}/%03d.png", out_dir_path);
 
-    //Lo tenemos que dejar -sDEVICE=png16m porque con png256 la diferencia de iagenes causa problemas
+    //We are using -sDEVICE=png16m because png256 causes problems on image difference operations
     let out_message: process::Output = Command::new("gs")
         .args(["-sDEVICE=png16m", "-o", &out_name, "-r600", "-dDownScaleFactor=3", "-dUseCropBox", "-q", pdf_path])
         .output()?;
@@ -38,18 +38,17 @@ Return:
 pub fn merge_pdf(pdf_images: &Vec<String>, out_dir: &str) -> anyhow::Result<String> { //El ordenamiento de las carpetas es aleatorio, asi que depende del comando pdftk tomar los archivos en orden
     let out_file: String = format!("{}/merged.pdf", out_dir);
 
-    //Aqui convertimos el &Vec<String> a Vec<&String> para pasarle a Command::new
+    //Converting &Vec<String> to Vec<&String> in order to be able to pass it to Command:new
     let mut swap_vec: Vec<&str> = Vec::new();
     swap_vec.reserve_exact(pdf_images.len());
     for img in pdf_images {
         swap_vec.push(img);
     }
-    //Usamos vector para el resto de argumentos porque no podemos concatenar tipos diferentes
+    //Using the same type for the other arguments
     let args: Vec<&str> = vec!["cat", "output", &out_file];
 
-    //Concatenamos los dos vectores de argumentos en un intento de emular la spread syntax
     let out_message: process::Output = Command::new("pdftk")
-        .args([&swap_vec[..], &args[..]].concat()) 
+        .args([&swap_vec[..], &args[..]].concat()) //Concatenating the 2 vectors in only one
         .output()?;
     io::stdout().write_all(&out_message.stdout)?;
     io::stderr().write_all(&out_message.stderr)?;

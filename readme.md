@@ -1,5 +1,6 @@
 # Keep your images after translating a PDF
 - Efficient Program for Cutting rectangles with difference operation between 2 PDFs and paste them on a third PDF
+- Only works on Linux for now.
 ## Table of Contents
 - [How It Works](#how-it-works)
 - [Dependencies](#dependencies)
@@ -19,6 +20,7 @@ This software was tested on:
 - qpdf 10.6.3
 - pdftk port to java 3.2.2
 - gs (it's included with pdftk or qpdf, if not, install it manually)
+
 If you have problems installing an old version of a command, read [this](https://stackoverflow.com/questions/49639342/how-can-i-downgrade-or-install-an-older-version-of-a-tool-i-installed-with-carg)
 ## Usage:
 Run the program with:
@@ -29,3 +31,6 @@ Run the program with:
 - The output folder is saved in the same directory that the command was invoked.
 
 You can draw the rectangles with any PDF editing program (some examples: Sejda PDF Editor, Adobe Acrobat, or online editors), choose a color that contrast with the background (it's recommended to choose a different color than the text color), some examples of the original and modified PDFs:
+
+<img width="316" alt="one" src="https://github.com/user-attachments/assets/39bd1047-6f28-41a8-a6d0-288afdc6bdd1" />
+<img width="316" alt="two" src="https://github.com/user-attachments/assets/1d42a718-cee8-416e-8640-aae76ecc15d1" />

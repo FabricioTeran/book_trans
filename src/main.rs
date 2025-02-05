@@ -42,7 +42,7 @@ fn main() -> anyhow::Result<()> {
 
     let created_outdir_path: String = create_outdir(args.o)?;
 
-    //Creamos las carpetas orig y modif
+    //Create orig and modif folders
     let orig_dir: String = format!("{}/orig", &created_outdir_path);
     fs::create_dir(&orig_dir)?;
     let modif_dir: String = format!("{}/modif", &created_outdir_path);
@@ -50,13 +50,13 @@ fn main() -> anyhow::Result<()> {
     let pdf_dir: String = format!("{}/pdf", &created_outdir_path);
     fs::create_dir(&pdf_dir)?;
 
-    //Generar imagenes a partir de los dos pdf
+    //Convert orig and modif pdfs to images
     let res1: Vec<String> = pdfutil::pdf2imgs(&args.orig, &orig_dir, &args.iext)?;
     let orig_image_paths_slice: &[String] = res1.as_slice();
     let res2: Vec<String> = pdfutil::pdf2imgs(&args.modif, &modif_dir, &args.iext)?;
     let modif_image_paths_slice: &[String] = res2.as_slice();
 
-    //Sacar las coordenadas de los rectangulos blancos con imagemagick
+    //Generate pdfs from the difference between the generated images
     let pdf_img_paths: Vec<String> = imagick::mask_and_alpha(orig_image_paths_slice, modif_image_paths_slice, &pdf_dir)?;
     println!("{:?}", &pdf_img_paths);
 
@@ -73,14 +73,14 @@ Return:
 - Result<String> = A result containing a string of the path of the created directory.
 */
 fn create_outdir(ostring: String) -> anyhow::Result<String> {
-    //Crear el directorio a partir de un PathBuf porque a veces el usuario nos puede pasar un path de carpeta que no termina en "/" o el path "./"
-    //Entonces usamos los path estandar porque ellos ya manejan estos casos
+    //The pathbuff validates the path to be valid on the current OS platform, and resolve relative paths like "./", "/" or "../"
     let mut out_dir_path: PathBuf = PathBuf::from(&ostring);
-    //Generar una cadena random para no sobreescribir los outputs anteriores
+    //Generate a random string to not overwrite previous outputs
     let rand_str: String = random_string::generate(15, "abcdefghijklmnopqrstuvwxyz1234567890");
     let complete_dir_name: String = format!("BT_out_{}", &rand_str);
     out_dir_path.push(&complete_dir_name);
-    //Debemos manejar el caso de que la carpeta exista
+    
+    //We need to manage the case of unexisting folder
     fs::create_dir(&out_dir_path)?;
     
     Ok(out_dir_path.display().to_string())

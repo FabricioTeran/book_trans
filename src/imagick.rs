@@ -11,8 +11,7 @@ Return:
 - Result<Vec<String>> = The Result containing a vector of strings of the paths of the resulting PDFs.
 */
 pub fn mask_and_alpha(orig_images: &[String], modif_images: &[String], out_dir: &str) -> anyhow::Result<Vec<String>> {
-    //Comparamos el vector con menor longitud para que haya correspondencia 1-1 entre ambas carpetas
-    //Si es mayor o igual devolvemos modif porque es menor o igual, si es menor, devolvemos orig porque es menor
+    //Comparing the shortest vector, we need a 1-1 correpondence between both folders
     let min_len = match orig_images.len() >= modif_images.len() {
         true => modif_images.len(),
         false => orig_images.len()
